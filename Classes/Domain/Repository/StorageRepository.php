@@ -124,11 +124,13 @@ class StorageRepository
     {
         if (!empty($this->extSettings['json'])) {
             $json = $this->emitBeforeWriteEvent($json);
-            $file = MaskUtility::getFileAbsFileName($this->extSettings['json']);
-            GeneralUtility::writeFile(
-                $file,
-                json_encode($json, JSON_PRETTY_PRINT)
-            );
+            if (!empty($json)) {
+                $file = MaskUtility::getFileAbsFileName($this->extSettings['json']);
+                GeneralUtility::writeFile(
+                    $file,
+                    json_encode($json, JSON_PRETTY_PRINT)
+                );
+            }
             $json = $this->emitAfterWriteEvent($json);
         }
         self::$json = $json;
@@ -142,7 +144,11 @@ class StorageRepository
      */
     protected function emitBeforeLoadEvent()
     {
-        self::$json = $this->getSignalSlotDispatcher()->dispatch(__CLASS__, 'beforeLoad', [self::$json]);
+        self::$json = $this->getSignalSlotDispatcher()->dispatch(
+            __CLASS__,
+            'beforeLoad',
+            ['json' => self::$json]
+        )['json'];
     }
 
     /**
@@ -153,7 +159,11 @@ class StorageRepository
      */
     protected function emitAfterLoadEvent()
     {
-        self::$json = $this->getSignalSlotDispatcher()->dispatch(__CLASS__, 'afterLoad', [self::$json]);
+        self::$json = $this->getSignalSlotDispatcher()->dispatch(
+            __CLASS__,
+            'afterLoad',
+            ['json' => self::$json]
+        )['json'];
     }
 
     /**
@@ -166,7 +176,11 @@ class StorageRepository
      */
     protected function emitBeforeWriteEvent(array $json): array
     {
-        return $this->getSignalSlotDispatcher()->dispatch(__CLASS__, 'beforeWrite', [$json]);
+        return $this->getSignalSlotDispatcher()->dispatch(
+            __CLASS__,
+            'beforeWrite',
+            ['json' => $json]
+        )['json'];
     }
 
     /**
@@ -179,7 +193,11 @@ class StorageRepository
      */
     protected function emitAfterWriteEvent(array $json): array
     {
-        return $this->getSignalSlotDispatcher()->dispatch(__CLASS__, 'afterWrite', [$json]);
+        return $this->getSignalSlotDispatcher()->dispatch(
+            __CLASS__,
+            'afterWrite',
+            ['json' => $json]
+        )['json'];
     }
 
     /**
