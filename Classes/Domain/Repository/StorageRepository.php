@@ -31,7 +31,11 @@ namespace MASK\Mask\Domain\Repository;
 
 use MASK\Mask\Utility\GeneralUtility as MaskUtility;
 use TYPO3\CMS\Core\Core\Environment;
+use TYPO3\CMS\Core\Package\PackageManager;
+use TYPO3\CMS\Core\Utility\ArrayUtility;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
+use TYPO3\CMS\Extbase\Object\ObjectManager;
+use TYPO3\CMS\Extbase\SignalSlot\Dispatcher;
 
 /**
  * Repository for \TYPO3\CMS\Extbase\Domain\Model\Tca.
@@ -76,6 +80,11 @@ class StorageRepository
     private static $json = null;
 
     /**
+     * @var Dispatcher
+     */
+    protected $signalSlotDispatcher;
+
+    /**
      * is called before every action
      */
     public function __construct()
@@ -93,12 +102,14 @@ class StorageRepository
     {
         if (self::$json === null) {
             self::$json = array();
+            $this->emitBeforeLoadEvent();
             if (!empty($this->extSettings['json'])) {
                 $file = MaskUtility::getFileAbsFileName($this->extSettings['json']);
                 if (file_exists($file)) {
                     self::$json = json_decode(file_get_contents($file), true);
                 }
             }
+            $this->emitAfterLoadEvent();
         }
         return self::$json;
     }
@@ -112,13 +123,76 @@ class StorageRepository
     public function write($json)
     {
         if (!empty($this->extSettings['json'])) {
+            $json = $this->emitBeforeWriteEvent($json);
             $file = MaskUtility::getFileAbsFileName($this->extSettings['json']);
             GeneralUtility::writeFile(
                 $file,
                 json_encode($json, JSON_PRETTY_PRINT)
             );
+            $json = $this->emitAfterWriteEvent($json);
         }
         self::$json = $json;
+    }
+
+    /**
+     * Emit the "beforeLoad" event
+     *
+     * @throws \TYPO3\CMS\Extbase\SignalSlot\Exception\InvalidSlotException
+     * @throws \TYPO3\CMS\Extbase\SignalSlot\Exception\InvalidSlotReturnException
+     */
+    protected function emitBeforeLoadEvent()
+    {
+        self::$json = $this->getSignalSlotDispatcher()->dispatch(__CLASS__, 'beforeLoad', [self::$json]);
+    }
+
+    /**
+     * Emit the "afterLoad" event
+     *
+     * @throws \TYPO3\CMS\Extbase\SignalSlot\Exception\InvalidSlotException
+     * @throws \TYPO3\CMS\Extbase\SignalSlot\Exception\InvalidSlotReturnException
+     */
+    protected function emitAfterLoadEvent()
+    {
+        self::$json = $this->getSignalSlotDispatcher()->dispatch(__CLASS__, 'afterLoad', [self::$json]);
+    }
+
+    /**
+     * Emit the "beforeWrite" event
+     *
+     * @param array $json
+     * @return array
+     * @throws \TYPO3\CMS\Extbase\SignalSlot\Exception\InvalidSlotException
+     * @throws \TYPO3\CMS\Extbase\SignalSlot\Exception\InvalidSlotReturnException
+     */
+    protected function emitBeforeWriteEvent(array $json): array
+    {
+        return $this->getSignalSlotDispatcher()->dispatch(__CLASS__, 'beforeWrite', [$json]);
+    }
+
+    /**
+     * Emit the "afterWrite" event
+     *
+     * @param array $json
+     * @return array
+     * @throws \TYPO3\CMS\Extbase\SignalSlot\Exception\InvalidSlotException
+     * @throws \TYPO3\CMS\Extbase\SignalSlot\Exception\InvalidSlotReturnException
+     */
+    protected function emitAfterWriteEvent(array $json): array
+    {
+        return $this->getSignalSlotDispatcher()->dispatch(__CLASS__, 'afterWrite', [$json]);
+    }
+
+    /**
+     * Get the SignalSlot dispatcher
+     *
+     * @return Dispatcher
+     */
+    protected function getSignalSlotDispatcher()
+    {
+        if (!isset($this->signalSlotDispatcher)) {
+            $this->signalSlotDispatcher = GeneralUtility::makeInstance(ObjectManager::class)->get(Dispatcher::class);
+        }
+        return $this->signalSlotDispatcher;
     }
 
     /**
