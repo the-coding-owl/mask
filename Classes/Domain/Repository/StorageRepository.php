@@ -205,110 +205,114 @@ class StorageRepository
     public function add($content)
     {
         $content = $this->emitBeforeAddEvent($content);
-        // Load
-        $json = $this->load();
+        if (!empty($content)) {
+            // Load
+            $json = $this->load();
 
-        // Create JSON elements Array:
-        foreach ($content["elements"] as $key => $value) {
+            // Create JSON elements Array:
+            foreach ($content["elements"] as $key => $value) {
+                // delete columns and labels of irre-fields from elements
+                if ($key == "columns" || $key == "labels") {
+                    foreach ($value as $index => $column) {
+                        if (!$content["tca"][$index]["inlineParent"]) {
+                            $contentColumns[] = $column;
+                        } else {
+                            unset($value[$index]);
+                            unset($value[$index]);
+                        }
+                        if ($key === 'labels'
+                            && empty($column)
+                            && isset($json[$content['type']]['tca'][$content['elements']['columns'][$index]])
+                        ) {
+                            // If using a mask field with empty label, we have to set the "default" label
+                            $label = '';
+                            foreach ($json[$content['type']]['elements'] as $element) {
+                                if (in_array($content['elements']['columns'][$index], $element['columns'], TRUE)) {
+                                    $i = array_search(
+                                        $content['elements']['columns'][$index], $element['columns'], TRUE
+                                    );
+                                    if (!empty($element['labels'][$i])) {
+                                        $label = $element['labels'][$i];
+                                        break;
+                                    }
+                                }
+                            }
+                            $value[$index] = $label;
+                        }
+                    }
+                }
+                $json[$content["type"]]["elements"][$content["elements"]["key"]][$key] = $value;
+            }
+
+            $contentColumns = [];
+            $columns = [];
+
             // delete columns and labels of irre-fields from elements
-            if ($key == "columns" || $key == "labels") {
-                foreach ($value as $index => $column) {
+            if ($content["elements"]["columns"]) {
+                foreach ($content["elements"]["columns"] as $index => $column) {
                     if (!$content["tca"][$index]["inlineParent"]) {
                         $contentColumns[] = $column;
                     } else {
-                        unset($value[$index]);
-                        unset($value[$index]);
+                        unset($content["elements"]["columns"][$index]);
+                        unset($content["elements"]["labels"][$index]);
                     }
-                    if ($key === 'labels'
-                        && empty($column)
-                        && isset($json[$content['type']]['tca'][$content['elements']['columns'][$index]])
-                    ) {
-                        // If using a mask field with empty label, we have to set the "default" label
-                        $label = '';
-                        foreach ($json[$content['type']]['elements'] as $element) {
-                            if (in_array($content['elements']['columns'][$index], $element['columns'], true)) {
-                                $i = array_search($content['elements']['columns'][$index], $element['columns'], true);
-                                if (!empty($element['labels'][$i])) {
-                                    $label = $element['labels'][$i];
-                                    break;
-                                }
-                            }
+                    $columns[] = $column;
+                }
+            }
+
+            // Create JSON sql Array:
+            if (is_array($content["sql"])) {
+                foreach ($content["sql"] as $table => $sqlArray) {
+                    foreach ($sqlArray as $index => $type) {
+                        $fieldname = "tx_mask_" . $columns[$index];
+                        $json[$table]["sql"][$fieldname][$table][$fieldname] = $type;
+                    }
+                }
+            }
+
+            // Create JSON tca Array:
+            if (is_array($content["tca"])) {
+
+
+                foreach ($content["tca"] as $key => $value) {
+                    $inlineField = FALSE;
+
+                    // if this field is inline-field
+                    if ($value["inlineParent"]) {
+                        $type = $value["inlineParent"];
+                        $inlineField = TRUE;
+                    } else {
+                        $type = $content["type"];
+                    }
+
+                    $json[$type]["tca"][$columns[$key]] = $value;
+
+                    // add rte flag if inline and rte
+                    if ($inlineField) {
+                        if ($content["elements"]["options"][$key] == "rte") {
+                            $json[$type]["tca"][$columns[$key]]["rte"] = "1";
                         }
-                        $value[$index] = $label;
                     }
-                }
-            }
-            $json[$content["type"]]["elements"][$content["elements"]["key"]][$key] = $value;
-        }
 
-        $contentColumns = array();
-        $columns = array();
-
-        // delete columns and labels of irre-fields from elements
-        if ($content["elements"]["columns"]) {
-            foreach ($content["elements"]["columns"] as $index => $column) {
-                if (!$content["tca"][$index]["inlineParent"]) {
-                    $contentColumns[] = $column;
-                } else {
-                    unset($content["elements"]["columns"][$index]);
-                    unset($content["elements"]["labels"][$index]);
-                }
-                $columns[] = $column;
-            }
-        }
-
-        // Create JSON sql Array:
-        if (is_array($content["sql"])) {
-            foreach ($content["sql"] as $table => $sqlArray) {
-                foreach ($sqlArray as $index => $type) {
-                    $fieldname = "tx_mask_" . $columns[$index];
-                    $json[$table]["sql"][$fieldname][$table][$fieldname] = $type;
-                }
-            }
-        }
-
-        // Create JSON tca Array:
-        if (is_array($content["tca"])) {
-
-
-            foreach ($content["tca"] as $key => $value) {
-                $inlineField = false;
-
-                // if this field is inline-field
-                if ($value["inlineParent"]) {
-                    $type = $value["inlineParent"];
-                    $inlineField = true;
-                } else {
-                    $type = $content["type"];
-                }
-
-                $json[$type]["tca"][$columns[$key]] = $value;
-
-                // add rte flag if inline and rte
-                if ($inlineField) {
-                    if ($content["elements"]["options"][$key] == "rte") {
-                        $json[$type]["tca"][$columns[$key]]["rte"] = "1";
+                    // Only add columns to elements if it is no inlinefield
+                    if (!$inlineField) {
+                        $json[$type]["elements"][$content["elements"]["key"]]["columns"][$key] = "tx_mask_" . $columns[$key];
                     }
-                }
+                    $json[$type]["tca"]["tx_mask_" . $columns[$key]] = $json[$type]["tca"][$columns[$key]];
+                    $json[$type]["tca"]["tx_mask_" . $columns[$key]]["key"] = $columns[$key];
 
-                // Only add columns to elements if it is no inlinefield
-                if (!$inlineField) {
-                    $json[$type]["elements"][$content["elements"]["key"]]["columns"][$key] = "tx_mask_" . $columns[$key];
-                }
-                $json[$type]["tca"]["tx_mask_" . $columns[$key]] = $json[$type]["tca"][$columns[$key]];
-                $json[$type]["tca"]["tx_mask_" . $columns[$key]]["key"] = $columns[$key];
+                    if ($inlineField) {
+                        $json[$type]["tca"]["tx_mask_" . $columns[$key]]["order"] = $key;
+                    }
 
-                if ($inlineField) {
-                    $json[$type]["tca"]["tx_mask_" . $columns[$key]]["order"] = $key;
+                    unset($json[$type]["tca"][$columns[$key]]);
                 }
-
-                unset($json[$type]["tca"][$columns[$key]]);
             }
-        }
 
-        // sort content elements by key before saving
-        $this->sortJson($json);
-        $this->write($json);
+            // sort content elements by key before saving
+            $this->sortJson($json);
+            $this->write($json);
+        }
         $this->emitAfterAddEvent($json);
     }
 
@@ -322,19 +326,21 @@ class StorageRepository
     public function remove($type, $key, $remainingFields = array())
     {
         [$type, $key, $remainingFields] = $this->emitBeforeRemoveEvent($type, $key, $remainingFields);
-        // Load
-        $json = $this->load();
+        if (!empty($type) && !empty($key) && !empty($remainingFields)) {
+            // Load
+            $json = $this->load();
 
-        // Remove
-        $columns = $json[$type]["elements"][$key]["columns"];
-        unset($json[$type]["elements"][$key]);
-        if (is_array($columns)) {
-            foreach ($columns as $field) {
-                $json = $this->removeField($type, $field, $json, $remainingFields);
+            // Remove
+            $columns = $json[$type]["elements"][$key]["columns"];
+            unset($json[$type]["elements"][$key]);
+            if (is_array($columns)) {
+                foreach ($columns as $field) {
+                    $json = $this->removeField($type, $field, $json, $remainingFields);
+                }
             }
+            $this->sortJson($json);
+            $this->write($json);
         }
-        $this->sortJson($json);
-        $this->write($json);
         $this->emitAfterRemoveEvent($json);
     }
 
@@ -347,11 +353,13 @@ class StorageRepository
     public function hide($type, $key)
     {
         [$type, $key] = $this->emitBeforeHideEvent($type, $key);
-        // Load
-        $json = $this->load();
-        $json[$type]["elements"][$key]["hidden"] = 1;
-        $this->sortJson($json);
-        $this->write($json);
+        if (!empty($type) && !empty($key)) {
+            // Load
+            $json = $this->load();
+            $json[$type]["elements"][$key]["hidden"] = 1;
+            $this->sortJson($json);
+            $this->write($json);
+        }
         $this->emitAfterHideEvent($json);
     }
 
@@ -364,11 +372,13 @@ class StorageRepository
     public function activate($type, $key)
     {
         [$type, $key] = $this->emitBeforeActivateEvent($type, $key);
-        // Load
-        $json = $this->load();
-        unset($json[$type]["elements"][$key]["hidden"]);
-        $this->sortJson($json);
-        $this->write($json);
+        if (!empty($type) && !empty($key)) {
+            // Load
+            $json = $this->load();
+            unset($json[$type]["elements"][$key]["hidden"]);
+            $this->sortJson($json);
+            $this->write($json);
+        }
         $this->emitAfterActivateEvent($json);
     }
 
@@ -487,8 +497,10 @@ class StorageRepository
     public function update($content)
     {
         $content = $this->emitBeforeUpdateEvent($content);
-        $this->remove($content["type"], $content["orgkey"], $content["elements"]["columns"]);
-        $this->add($content);
+        if (!empty($content)) {
+            $this->remove($content["type"], $content["orgkey"], $content["elements"]["columns"]);
+            $this->add($content);
+        }
         $this->emitAfterUpdateEvent($content);
     }
 
