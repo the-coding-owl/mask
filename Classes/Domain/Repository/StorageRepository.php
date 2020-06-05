@@ -137,83 +137,6 @@ class StorageRepository
     }
 
     /**
-     * Emit the "beforeLoad" event
-     *
-     * @throws \TYPO3\CMS\Extbase\SignalSlot\Exception\InvalidSlotException
-     * @throws \TYPO3\CMS\Extbase\SignalSlot\Exception\InvalidSlotReturnException
-     */
-    protected function emitBeforeLoadEvent()
-    {
-        self::$json = $this->getSignalSlotDispatcher()->dispatch(
-            __CLASS__,
-            'beforeLoad',
-            ['json' => self::$json]
-        )['json'];
-    }
-
-    /**
-     * Emit the "afterLoad" event
-     *
-     * @throws \TYPO3\CMS\Extbase\SignalSlot\Exception\InvalidSlotException
-     * @throws \TYPO3\CMS\Extbase\SignalSlot\Exception\InvalidSlotReturnException
-     */
-    protected function emitAfterLoadEvent()
-    {
-        self::$json = $this->getSignalSlotDispatcher()->dispatch(
-            __CLASS__,
-            'afterLoad',
-            ['json' => self::$json]
-        )['json'];
-    }
-
-    /**
-     * Emit the "beforeWrite" event
-     *
-     * @param array $json
-     * @return array
-     * @throws \TYPO3\CMS\Extbase\SignalSlot\Exception\InvalidSlotException
-     * @throws \TYPO3\CMS\Extbase\SignalSlot\Exception\InvalidSlotReturnException
-     */
-    protected function emitBeforeWriteEvent(array $json): array
-    {
-        return $this->getSignalSlotDispatcher()->dispatch(
-            __CLASS__,
-            'beforeWrite',
-            ['json' => $json]
-        )['json'];
-    }
-
-    /**
-     * Emit the "afterWrite" event
-     *
-     * @param array $json
-     * @return array
-     * @throws \TYPO3\CMS\Extbase\SignalSlot\Exception\InvalidSlotException
-     * @throws \TYPO3\CMS\Extbase\SignalSlot\Exception\InvalidSlotReturnException
-     */
-    protected function emitAfterWriteEvent(array $json): array
-    {
-        return $this->getSignalSlotDispatcher()->dispatch(
-            __CLASS__,
-            'afterWrite',
-            ['json' => $json]
-        )['json'];
-    }
-
-    /**
-     * Get the SignalSlot dispatcher
-     *
-     * @return Dispatcher
-     */
-    protected function getSignalSlotDispatcher()
-    {
-        if (!isset($this->signalSlotDispatcher)) {
-            $this->signalSlotDispatcher = GeneralUtility::makeInstance(ObjectManager::class)->get(Dispatcher::class);
-        }
-        return $this->signalSlotDispatcher;
-    }
-
-    /**
      * Load Field
      * @author Benjamin Butschell <bb@webprofil.at>
      * @return array
@@ -281,6 +204,7 @@ class StorageRepository
      */
     public function add($content)
     {
+        $content = $this->emitBeforeAddEvent($content);
         // Load
         $json = $this->load();
 
@@ -385,6 +309,7 @@ class StorageRepository
         // sort content elements by key before saving
         $this->sortJson($json);
         $this->write($json);
+        $this->emitAfterAddEvent($json);
     }
 
     /**
@@ -396,6 +321,7 @@ class StorageRepository
      */
     public function remove($type, $key, $remainingFields = array())
     {
+        [$type, $key, $remainingFields] = $this->emitBeforeRemoveEvent($type, $key, $remainingFields);
         // Load
         $json = $this->load();
 
@@ -409,6 +335,7 @@ class StorageRepository
         }
         $this->sortJson($json);
         $this->write($json);
+        $this->emitAfterRemoveEvent($json);
     }
 
     /**
@@ -419,11 +346,13 @@ class StorageRepository
      */
     public function hide($type, $key)
     {
+        [$type, $key] = $this->emitBeforeHideEvent($type, $key);
         // Load
         $json = $this->load();
         $json[$type]["elements"][$key]["hidden"] = 1;
         $this->sortJson($json);
         $this->write($json);
+        $this->emitAfterHideEvent($json);
     }
 
     /**
@@ -434,11 +363,13 @@ class StorageRepository
      */
     public function activate($type, $key)
     {
+        [$type, $key] = $this->emitBeforeActivateEvent($type, $key);
         // Load
         $json = $this->load();
         unset($json[$type]["elements"][$key]["hidden"]);
         $this->sortJson($json);
         $this->write($json);
+        $this->emitAfterActivateEvent($json);
     }
 
     /**
@@ -555,8 +486,10 @@ class StorageRepository
      */
     public function update($content)
     {
+        $content = $this->emitBeforeUpdateEvent($content);
         $this->remove($content["type"], $content["orgkey"], $content["elements"]["columns"]);
         $this->add($content);
+        $this->emitAfterUpdateEvent($content);
     }
 
     /**
@@ -579,5 +512,251 @@ class StorageRepository
                 $this->sortJson($item);
             }
         }
+    }
+
+    /**
+     * Emit the "beforeLoad" event
+     *
+     * @throws \TYPO3\CMS\Extbase\SignalSlot\Exception\InvalidSlotException
+     * @throws \TYPO3\CMS\Extbase\SignalSlot\Exception\InvalidSlotReturnException
+     */
+    protected function emitBeforeLoadEvent()
+    {
+        self::$json = $this->getSignalSlotDispatcher()->dispatch(
+            __CLASS__,
+            'beforeLoad',
+            ['json' => self::$json]
+        )['json'];
+    }
+
+    /**
+     * Emit the "afterLoad" event
+     *
+     * @throws \TYPO3\CMS\Extbase\SignalSlot\Exception\InvalidSlotException
+     * @throws \TYPO3\CMS\Extbase\SignalSlot\Exception\InvalidSlotReturnException
+     */
+    protected function emitAfterLoadEvent()
+    {
+        self::$json = $this->getSignalSlotDispatcher()->dispatch(
+            __CLASS__,
+            'afterLoad',
+            ['json' => self::$json]
+        )['json'];
+    }
+
+    /**
+     * Emit the "beforeWrite" event
+     *
+     * @param array $json
+     * @return array
+     * @throws \TYPO3\CMS\Extbase\SignalSlot\Exception\InvalidSlotException
+     * @throws \TYPO3\CMS\Extbase\SignalSlot\Exception\InvalidSlotReturnException
+     */
+    protected function emitBeforeWriteEvent(array $json): array
+    {
+        return $this->getSignalSlotDispatcher()->dispatch(
+            __CLASS__,
+            'beforeWrite',
+            ['json' => $json]
+        )['json'];
+    }
+
+    /**
+     * Emit the "afterWrite" event
+     *
+     * @param array $json
+     * @return array
+     * @throws \TYPO3\CMS\Extbase\SignalSlot\Exception\InvalidSlotException
+     * @throws \TYPO3\CMS\Extbase\SignalSlot\Exception\InvalidSlotReturnException
+     */
+    protected function emitAfterWriteEvent(array $json): array
+    {
+        return $this->getSignalSlotDispatcher()->dispatch(
+            __CLASS__,
+            'afterWrite',
+            ['json' => $json]
+        )['json'];
+    }
+
+    /**
+     * Emit the "beforeAdd" event
+     *
+     * @param array $content
+     * @return mixed
+     * @throws \TYPO3\CMS\Extbase\SignalSlot\Exception\InvalidSlotException
+     * @throws \TYPO3\CMS\Extbase\SignalSlot\Exception\InvalidSlotReturnException
+     */
+    protected function emitBeforeAddEvent(array $content)
+    {
+        return $this->getSignalSlotDispatcher()->dispatch(
+            __CLASS__,
+            'beforeAdd',
+            ['content' => $content]
+        )['content'];
+    }
+
+    /**
+     * Emit the "afterAdd" event
+     *
+     * @param array|null $json
+     * @throws \TYPO3\CMS\Extbase\SignalSlot\Exception\InvalidSlotException
+     * @throws \TYPO3\CMS\Extbase\SignalSlot\Exception\InvalidSlotReturnException
+     */
+    protected function emitAfterAddEvent(?array $json)
+    {
+        self::$json = $this->getSignalSlotDispatcher()->dispatch(
+            __CLASS__,
+            'afterAdd',
+            ['json' => $json]
+        )['json'];
+    }
+
+    /**
+     * Emit the "beforeRemove" event
+     *
+     * @param string $type
+     * @param string $key
+     * @param array $remainingFields
+     * @return array|mixed
+     * @throws \TYPO3\CMS\Extbase\SignalSlot\Exception\InvalidSlotException
+     * @throws \TYPO3\CMS\Extbase\SignalSlot\Exception\InvalidSlotReturnException
+     */
+    protected function emitBeforeRemoveEvent(string $type, string $key, array $remainingFields)
+    {
+        return $this->getSignalSlotDispatcher()->dispatch(
+            __CLASS__,
+            'beforeRemove',
+            ['type' => $type, 'key' => $key, 'remainingFields' => $remainingFields]
+        );
+    }
+
+    /**
+     * Emit the "afterRemove" event
+     *
+     * @param array|null $json
+     * @throws \TYPO3\CMS\Extbase\SignalSlot\Exception\InvalidSlotException
+     * @throws \TYPO3\CMS\Extbase\SignalSlot\Exception\InvalidSlotReturnException
+     */
+    protected function emitAfterRemoveEvent(?array $json)
+    {
+        self::$json = $this->getSignalSlotDispatcher()->dispatch(
+            __CLASS__,
+            'afterRemove',
+            ['json' => $json]
+        );
+    }
+
+    /**
+     * Emit the "beforeHide" event
+     *
+     * @param string $type
+     * @param string $key
+     * @return array|mixed
+     * @throws \TYPO3\CMS\Extbase\SignalSlot\Exception\InvalidSlotException
+     * @throws \TYPO3\CMS\Extbase\SignalSlot\Exception\InvalidSlotReturnException
+     */
+    protected function emitBeforeHideEvent(string $type, string $key)
+    {
+        return $this->getSignalSlotDispatcher()->dispatch(
+            __CLASS__,
+            'beforeHide',
+            ['type' => $type, 'key' => $key]
+        );
+    }
+
+    /**
+     * Emit the "afterHide" event
+     *
+     * @param array|null $json
+     * @throws \TYPO3\CMS\Extbase\SignalSlot\Exception\InvalidSlotException
+     * @throws \TYPO3\CMS\Extbase\SignalSlot\Exception\InvalidSlotReturnException
+     */
+    protected function emitAfterHideEvent(?array $json)
+    {
+        self::$json = $this->getSignalSlotDispatcher()->dispatch(
+            __CLASS__,
+            'afterHide',
+            ['json' => $json]
+        );
+    }
+
+    /**
+     * Emit the "beforeActivate" event
+     *
+     * @param string $type
+     * @param string $key
+     * @return array|mixed
+     * @throws \TYPO3\CMS\Extbase\SignalSlot\Exception\InvalidSlotException
+     * @throws \TYPO3\CMS\Extbase\SignalSlot\Exception\InvalidSlotReturnException
+     */
+    protected function emitBeforeActivateEvent(string $type, string $key)
+    {
+        return $this->getSignalSlotDispatcher()->dispatch(
+            __CLASS__,
+            'beforeActivate',
+            ['type' => $type, 'key' => $key]
+        );
+    }
+
+    /**
+     * Emit the "afterActivate" event
+     *
+     * @param array|null $json
+     * @throws \TYPO3\CMS\Extbase\SignalSlot\Exception\InvalidSlotException
+     * @throws \TYPO3\CMS\Extbase\SignalSlot\Exception\InvalidSlotReturnException
+     */
+    protected function emitAfterActivateEvent(?array $json)
+    {
+        self::$json = $this->getSignalSlotDispatcher()->dispatch(
+            __CLASS__,
+            'afterActivate',
+            ['json' => $json]
+        );
+    }
+
+    /**
+     * Emit the "beforeUpdate" event
+     *
+     * @param array $content
+     * @return mixed
+     * @throws \TYPO3\CMS\Extbase\SignalSlot\Exception\InvalidSlotException
+     * @throws \TYPO3\CMS\Extbase\SignalSlot\Exception\InvalidSlotReturnException
+     */
+    protected function emitBeforeUpdateEvent(array $content)
+    {
+        return $this->getSignalSlotDispatcher()->dispatch(
+            __CLASS__,
+            'beforeUpdate',
+            ['content' => $content]
+        )['content'];
+    }
+
+    /**
+     * Emit the "afterUpdate" event
+     *
+     * @param $content
+     * @throws \TYPO3\CMS\Extbase\SignalSlot\Exception\InvalidSlotException
+     * @throws \TYPO3\CMS\Extbase\SignalSlot\Exception\InvalidSlotReturnException
+     */
+    protected function emitAfterUpdateEvent($content)
+    {
+        $this->getSignalSlotDispatcher()->dispatch(
+            __CLASS__,
+            'afterUpdate',
+            ['content' => $content]
+        );
+    }
+
+    /**
+     * Get the SignalSlot dispatcher
+     *
+     * @return Dispatcher
+     */
+    protected function getSignalSlotDispatcher()
+    {
+        if (!isset($this->signalSlotDispatcher)) {
+            $this->signalSlotDispatcher = GeneralUtility::makeInstance(ObjectManager::class)->get(Dispatcher::class);
+        }
+        return $this->signalSlotDispatcher;
     }
 }
