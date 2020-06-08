@@ -30,9 +30,6 @@ namespace MASK\Mask\Domain\Repository;
  * ************************************************************* */
 
 use MASK\Mask\Utility\GeneralUtility as MaskUtility;
-use TYPO3\CMS\Core\Core\Environment;
-use TYPO3\CMS\Core\Package\PackageManager;
-use TYPO3\CMS\Core\Utility\ArrayUtility;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Extbase\Object\ObjectManager;
 use TYPO3\CMS\Extbase\SignalSlot\Dispatcher;
