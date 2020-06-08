@@ -181,6 +181,7 @@ class StorageRepository
      */
     public function loadElement($type, $key)
     {
+        [$type, $key] = $this->emitBeforeLoadElementEvent($type, $key);
         $json = $this->load();
         $fields = array();
         $columns = $json[$type]["elements"][$key]["columns"];
@@ -194,6 +195,7 @@ class StorageRepository
         if (count($fields) > 0) {
             $json[$type]["elements"][$key]["tca"] = $fields;
         }
+        $json = $this->emitAfterLoadElementEvent($json);
         return $json[$type]["elements"][$key];
     }
 
@@ -655,7 +657,7 @@ class StorageRepository
             __CLASS__,
             'afterRemove',
             ['json' => $json]
-        );
+        )['json'];
     }
 
     /**
@@ -689,7 +691,7 @@ class StorageRepository
             __CLASS__,
             'afterHide',
             ['json' => $json]
-        );
+        )['json'];
     }
 
     /**
@@ -723,7 +725,7 @@ class StorageRepository
             __CLASS__,
             'afterActivate',
             ['json' => $json]
-        );
+        )['json'];
     }
 
     /**
@@ -757,6 +759,41 @@ class StorageRepository
             'afterUpdate',
             ['content' => $content]
         );
+    }
+
+    /**
+     * Emit the "beforeElementLoad" event
+     *
+     * @param string $type
+     * @param string $key
+     * @return array|mixed
+     * @throws \TYPO3\CMS\Extbase\SignalSlot\Exception\InvalidSlotException
+     * @throws \TYPO3\CMS\Extbase\SignalSlot\Exception\InvalidSlotReturnException
+     */
+    protected function emitBeforeLoadElementEvent(string $type, string $key)
+    {
+        return $this->getSignalSlotDispatcher()->dispatch(
+            __CLASS__,
+            'beforeLoadElement',
+            ['type' => $type, 'key' => $key]
+        );
+    }
+
+    /**
+     * Emit the "afterLoadElement" event
+     *
+     * @param array|null $json
+     * @return array|mixed
+     * @throws \TYPO3\CMS\Extbase\SignalSlot\Exception\InvalidSlotException
+     * @throws \TYPO3\CMS\Extbase\SignalSlot\Exception\InvalidSlotReturnException
+     */
+    protected function emitAfterLoadElementEvent(?array $json)
+    {
+        return $this->getSignalSlotDispatcher()->dispatch(
+            __CLASS__,
+            'afterLoadElement',
+            ['json' => $json]
+        )['json'];
     }
 
     /**
