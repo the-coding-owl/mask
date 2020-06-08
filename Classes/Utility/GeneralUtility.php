@@ -29,6 +29,8 @@ namespace MASK\Mask\Utility;
 use TYPO3\CMS\Core\Core\Environment;
 use TYPO3\CMS\Core\Utility\ExtensionManagementUtility;
 use TYPO3\CMS\Core\Utility\GeneralUtility as CoreUtility;
+use TYPO3\CMS\Extbase\Object\ObjectManager;
+use TYPO3\CMS\Extbase\SignalSlot\Dispatcher;
 
 /**
  * General useful methods
@@ -245,6 +247,12 @@ class GeneralUtility
         $onlyTemplateName = false,
         $path = null
     ): string {
+        $signalSlotDispatcher = CoreUtility::makeInstance(ObjectManager::class)->get(Dispatcher::class);
+        [$settings, $elementKey, $onlyTemplateName, $path] = $signalSlotDispatcher->dispatch(
+            __CLASS__,
+            'beforeGetTemplatePath',
+            ['settings' => $settings, 'elementKey' => $elementKey, 'onlyTemplateName' => $onlyTemplateName, 'path' => $path]
+        );
         if (!$path) {
             $path = self::getFileAbsFileName(rtrim($settings['content'], '/') . '/');
         }
@@ -267,6 +275,18 @@ class GeneralUtility
             }
         }
 
+        [$onlyTemplateName, $path, $fileName, $fileExtension] = $signalSlotDispatcher->dispatch(
+            __CLASS__,
+            'afterGetTemplatePath',
+            [
+                'settings' => $settings,
+                'elementKey' => $elementKey,
+                'onlyTemplateName' => $onlyTemplateName,
+                'path' => $path,
+                'fileName' => $fileName,
+                'fileExtension' => $fileExtension
+            ]
+        );
         if ($onlyTemplateName) {
             return $fileName . $fileExtension;
         }
@@ -312,5 +332,4 @@ class GeneralUtility
         }
         return '';
     }
-
 }
