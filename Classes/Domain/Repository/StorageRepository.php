@@ -178,7 +178,6 @@ class StorageRepository
      */
     public function loadElement($type, $key)
     {
-        [$type, $key] = $this->emitBeforeLoadElementEvent($type, $key);
         $json = $this->load();
         $fields = array();
         $columns = $json[$type]["elements"][$key]["columns"];
@@ -192,7 +191,6 @@ class StorageRepository
         if (count($fields) > 0) {
             $json[$type]["elements"][$key]["tca"] = $fields;
         }
-        $json = $this->emitAfterLoadElementEvent($json);
         return $json[$type]["elements"][$key];
     }
 
@@ -203,116 +201,112 @@ class StorageRepository
      */
     public function add($content)
     {
-        $content = $this->emitBeforeAddEvent($content);
-        if (!empty($content)) {
-            // Load
-            $json = $this->load();
+        // Load
+        $json = $this->load();
 
-            // Create JSON elements Array:
-            foreach ($content["elements"] as $key => $value) {
-                // delete columns and labels of irre-fields from elements
-                if ($key == "columns" || $key == "labels") {
-                    foreach ($value as $index => $column) {
-                        if (!$content["tca"][$index]["inlineParent"]) {
-                            $contentColumns[] = $column;
-                        } else {
-                            unset($value[$index]);
-                            unset($value[$index]);
-                        }
-                        if ($key === 'labels'
-                            && empty($column)
-                            && isset($json[$content['type']]['tca'][$content['elements']['columns'][$index]])
-                        ) {
-                            // If using a mask field with empty label, we have to set the "default" label
-                            $label = '';
-                            foreach ($json[$content['type']]['elements'] as $element) {
-                                if (in_array($content['elements']['columns'][$index], $element['columns'], TRUE)) {
-                                    $i = array_search(
-                                        $content['elements']['columns'][$index], $element['columns'], TRUE
-                                    );
-                                    if (!empty($element['labels'][$i])) {
-                                        $label = $element['labels'][$i];
-                                        break;
-                                    }
-                                }
-                            }
-                            $value[$index] = $label;
-                        }
-                    }
-                }
-                $json[$content["type"]]["elements"][$content["elements"]["key"]][$key] = $value;
-            }
-
-            $contentColumns = [];
-            $columns = [];
-
+        // Create JSON elements Array:
+        foreach ($content["elements"] as $key => $value) {
             // delete columns and labels of irre-fields from elements
-            if ($content["elements"]["columns"]) {
-                foreach ($content["elements"]["columns"] as $index => $column) {
+            if ($key == "columns" || $key == "labels") {
+                foreach ($value as $index => $column) {
                     if (!$content["tca"][$index]["inlineParent"]) {
                         $contentColumns[] = $column;
                     } else {
-                        unset($content["elements"]["columns"][$index]);
-                        unset($content["elements"]["labels"][$index]);
+                        unset($value[$index]);
+                        unset($value[$index]);
                     }
-                    $columns[] = $column;
-                }
-            }
-
-            // Create JSON sql Array:
-            if (is_array($content["sql"])) {
-                foreach ($content["sql"] as $table => $sqlArray) {
-                    foreach ($sqlArray as $index => $type) {
-                        $fieldname = "tx_mask_" . $columns[$index];
-                        $json[$table]["sql"][$fieldname][$table][$fieldname] = $type;
-                    }
-                }
-            }
-
-            // Create JSON tca Array:
-            if (is_array($content["tca"])) {
-
-
-                foreach ($content["tca"] as $key => $value) {
-                    $inlineField = FALSE;
-
-                    // if this field is inline-field
-                    if ($value["inlineParent"]) {
-                        $type = $value["inlineParent"];
-                        $inlineField = TRUE;
-                    } else {
-                        $type = $content["type"];
-                    }
-
-                    $json[$type]["tca"][$columns[$key]] = $value;
-
-                    // add rte flag if inline and rte
-                    if ($inlineField) {
-                        if ($content["elements"]["options"][$key] == "rte") {
-                            $json[$type]["tca"][$columns[$key]]["rte"] = "1";
+                    if ($key === 'labels'
+                        && empty($column)
+                        && isset($json[$content['type']]['tca'][$content['elements']['columns'][$index]])
+                    ) {
+                        // If using a mask field with empty label, we have to set the "default" label
+                        $label = '';
+                        foreach ($json[$content['type']]['elements'] as $element) {
+                            if (in_array($content['elements']['columns'][$index], $element['columns'], TRUE)) {
+                                $i = array_search(
+                                    $content['elements']['columns'][$index], $element['columns'], TRUE
+                                );
+                                if (!empty($element['labels'][$i])) {
+                                    $label = $element['labels'][$i];
+                                    break;
+                                }
+                            }
                         }
+                        $value[$index] = $label;
                     }
-
-                    // Only add columns to elements if it is no inlinefield
-                    if (!$inlineField) {
-                        $json[$type]["elements"][$content["elements"]["key"]]["columns"][$key] = "tx_mask_" . $columns[$key];
-                    }
-                    $json[$type]["tca"]["tx_mask_" . $columns[$key]] = $json[$type]["tca"][$columns[$key]];
-                    $json[$type]["tca"]["tx_mask_" . $columns[$key]]["key"] = $columns[$key];
-
-                    if ($inlineField) {
-                        $json[$type]["tca"]["tx_mask_" . $columns[$key]]["order"] = $key;
-                    }
-
-                    unset($json[$type]["tca"][$columns[$key]]);
                 }
             }
-
-            // sort content elements by key before saving
-            $this->sortJson($json);
-            $this->write($json);
+            $json[$content["type"]]["elements"][$content["elements"]["key"]][$key] = $value;
         }
-        $this->emitAfterAddEvent($json);
+
+        $contentColumns = [];
+        $columns = [];
+
+        // delete columns and labels of irre-fields from elements
+        if ($content["elements"]["columns"]) {
+            foreach ($content["elements"]["columns"] as $index => $column) {
+                if (!$content["tca"][$index]["inlineParent"]) {
+                    $contentColumns[] = $column;
+                } else {
+                    unset($content["elements"]["columns"][$index]);
+                    unset($content["elements"]["labels"][$index]);
+                }
+                $columns[] = $column;
+            }
+        }
+
+        // Create JSON sql Array:
+        if (is_array($content["sql"])) {
+            foreach ($content["sql"] as $table => $sqlArray) {
+                foreach ($sqlArray as $index => $type) {
+                    $fieldname = "tx_mask_" . $columns[$index];
+                    $json[$table]["sql"][$fieldname][$table][$fieldname] = $type;
+                }
+            }
+        }
+
+        // Create JSON tca Array:
+        if (is_array($content["tca"])) {
+
+
+            foreach ($content["tca"] as $key => $value) {
+                $inlineField = FALSE;
+
+                // if this field is inline-field
+                if ($value["inlineParent"]) {
+                    $type = $value["inlineParent"];
+                    $inlineField = TRUE;
+                } else {
+                    $type = $content["type"];
+                }
+
+                $json[$type]["tca"][$columns[$key]] = $value;
+
+                // add rte flag if inline and rte
+                if ($inlineField) {
+                    if ($content["elements"]["options"][$key] == "rte") {
+                        $json[$type]["tca"][$columns[$key]]["rte"] = "1";
+                    }
+                }
+
+                // Only add columns to elements if it is no inlinefield
+                if (!$inlineField) {
+                    $json[$type]["elements"][$content["elements"]["key"]]["columns"][$key] = "tx_mask_" . $columns[$key];
+                }
+                $json[$type]["tca"]["tx_mask_" . $columns[$key]] = $json[$type]["tca"][$columns[$key]];
+                $json[$type]["tca"]["tx_mask_" . $columns[$key]]["key"] = $columns[$key];
+
+                if ($inlineField) {
+                    $json[$type]["tca"]["tx_mask_" . $columns[$key]]["order"] = $key;
+                }
+
+                unset($json[$type]["tca"][$columns[$key]]);
+            }
+        }
+
+        // sort content elements by key before saving
+        $this->sortJson($json);
+        $this->write($json);
     }
 
     /**
@@ -324,23 +318,19 @@ class StorageRepository
      */
     public function remove($type, $key, $remainingFields = array())
     {
-        [$type, $key, $remainingFields] = $this->emitBeforeRemoveEvent($type, $key, $remainingFields);
-        if (!empty($type) && !empty($key) && !empty($remainingFields)) {
-            // Load
-            $json = $this->load();
+        // Load
+        $json = $this->load();
 
-            // Remove
-            $columns = $json[$type]["elements"][$key]["columns"];
-            unset($json[$type]["elements"][$key]);
-            if (is_array($columns)) {
-                foreach ($columns as $field) {
-                    $json = $this->removeField($type, $field, $json, $remainingFields);
-                }
+        // Remove
+        $columns = $json[$type]["elements"][$key]["columns"];
+        unset($json[$type]["elements"][$key]);
+        if (is_array($columns)) {
+            foreach ($columns as $field) {
+                $json = $this->removeField($type, $field, $json, $remainingFields);
             }
-            $this->sortJson($json);
-            $this->write($json);
         }
-        $this->emitAfterRemoveEvent($json);
+        $this->sortJson($json);
+        $this->write($json);
     }
 
     /**
@@ -351,15 +341,11 @@ class StorageRepository
      */
     public function hide($type, $key)
     {
-        [$type, $key] = $this->emitBeforeHideEvent($type, $key);
-        if (!empty($type) && !empty($key)) {
-            // Load
-            $json = $this->load();
-            $json[$type]["elements"][$key]["hidden"] = 1;
-            $this->sortJson($json);
-            $this->write($json);
-        }
-        $this->emitAfterHideEvent($json);
+        // Load
+        $json = $this->load();
+        $json[$type]["elements"][$key]["hidden"] = 1;
+        $this->sortJson($json);
+        $this->write($json);
     }
 
     /**
@@ -370,15 +356,11 @@ class StorageRepository
      */
     public function activate($type, $key)
     {
-        [$type, $key] = $this->emitBeforeActivateEvent($type, $key);
-        if (!empty($type) && !empty($key)) {
-            // Load
-            $json = $this->load();
-            unset($json[$type]["elements"][$key]["hidden"]);
-            $this->sortJson($json);
-            $this->write($json);
-        }
-        $this->emitAfterActivateEvent($json);
+        // Load
+        $json = $this->load();
+        unset($json[$type]["elements"][$key]["hidden"]);
+        $this->sortJson($json);
+        $this->write($json);
     }
 
     /**
@@ -495,12 +477,8 @@ class StorageRepository
      */
     public function update($content)
     {
-        $content = $this->emitBeforeUpdateEvent($content);
-        if (!empty($content)) {
-            $this->remove($content["type"], $content["orgkey"], $content["elements"]["columns"]);
-            $this->add($content);
-        }
-        $this->emitAfterUpdateEvent($content);
+        $this->remove($content["type"], $content["orgkey"], $content["elements"]["columns"]);
+        $this->add($content);
     }
 
     /**
@@ -585,210 +563,6 @@ class StorageRepository
         return $this->getSignalSlotDispatcher()->dispatch(
             __CLASS__,
             'afterWrite',
-            ['json' => $json]
-        )['json'];
-    }
-
-    /**
-     * Emit the "beforeAdd" event
-     *
-     * @param array $content
-     * @return mixed
-     * @throws \TYPO3\CMS\Extbase\SignalSlot\Exception\InvalidSlotException
-     * @throws \TYPO3\CMS\Extbase\SignalSlot\Exception\InvalidSlotReturnException
-     */
-    protected function emitBeforeAddEvent(array $content)
-    {
-        return $this->getSignalSlotDispatcher()->dispatch(
-            __CLASS__,
-            'beforeAdd',
-            ['content' => $content]
-        )['content'];
-    }
-
-    /**
-     * Emit the "afterAdd" event
-     *
-     * @param array|null $json
-     * @throws \TYPO3\CMS\Extbase\SignalSlot\Exception\InvalidSlotException
-     * @throws \TYPO3\CMS\Extbase\SignalSlot\Exception\InvalidSlotReturnException
-     */
-    protected function emitAfterAddEvent(?array $json)
-    {
-        self::$json = $this->getSignalSlotDispatcher()->dispatch(
-            __CLASS__,
-            'afterAdd',
-            ['json' => $json]
-        )['json'];
-    }
-
-    /**
-     * Emit the "beforeRemove" event
-     *
-     * @param string $type
-     * @param string $key
-     * @param array $remainingFields
-     * @return array|mixed
-     * @throws \TYPO3\CMS\Extbase\SignalSlot\Exception\InvalidSlotException
-     * @throws \TYPO3\CMS\Extbase\SignalSlot\Exception\InvalidSlotReturnException
-     */
-    protected function emitBeforeRemoveEvent(string $type, string $key, array $remainingFields)
-    {
-        return $this->getSignalSlotDispatcher()->dispatch(
-            __CLASS__,
-            'beforeRemove',
-            ['type' => $type, 'key' => $key, 'remainingFields' => $remainingFields]
-        );
-    }
-
-    /**
-     * Emit the "afterRemove" event
-     *
-     * @param array|null $json
-     * @throws \TYPO3\CMS\Extbase\SignalSlot\Exception\InvalidSlotException
-     * @throws \TYPO3\CMS\Extbase\SignalSlot\Exception\InvalidSlotReturnException
-     */
-    protected function emitAfterRemoveEvent(?array $json)
-    {
-        self::$json = $this->getSignalSlotDispatcher()->dispatch(
-            __CLASS__,
-            'afterRemove',
-            ['json' => $json]
-        )['json'];
-    }
-
-    /**
-     * Emit the "beforeHide" event
-     *
-     * @param string $type
-     * @param string $key
-     * @return array|mixed
-     * @throws \TYPO3\CMS\Extbase\SignalSlot\Exception\InvalidSlotException
-     * @throws \TYPO3\CMS\Extbase\SignalSlot\Exception\InvalidSlotReturnException
-     */
-    protected function emitBeforeHideEvent(string $type, string $key)
-    {
-        return $this->getSignalSlotDispatcher()->dispatch(
-            __CLASS__,
-            'beforeHide',
-            ['type' => $type, 'key' => $key]
-        );
-    }
-
-    /**
-     * Emit the "afterHide" event
-     *
-     * @param array|null $json
-     * @throws \TYPO3\CMS\Extbase\SignalSlot\Exception\InvalidSlotException
-     * @throws \TYPO3\CMS\Extbase\SignalSlot\Exception\InvalidSlotReturnException
-     */
-    protected function emitAfterHideEvent(?array $json)
-    {
-        self::$json = $this->getSignalSlotDispatcher()->dispatch(
-            __CLASS__,
-            'afterHide',
-            ['json' => $json]
-        )['json'];
-    }
-
-    /**
-     * Emit the "beforeActivate" event
-     *
-     * @param string $type
-     * @param string $key
-     * @return array|mixed
-     * @throws \TYPO3\CMS\Extbase\SignalSlot\Exception\InvalidSlotException
-     * @throws \TYPO3\CMS\Extbase\SignalSlot\Exception\InvalidSlotReturnException
-     */
-    protected function emitBeforeActivateEvent(string $type, string $key)
-    {
-        return $this->getSignalSlotDispatcher()->dispatch(
-            __CLASS__,
-            'beforeActivate',
-            ['type' => $type, 'key' => $key]
-        );
-    }
-
-    /**
-     * Emit the "afterActivate" event
-     *
-     * @param array|null $json
-     * @throws \TYPO3\CMS\Extbase\SignalSlot\Exception\InvalidSlotException
-     * @throws \TYPO3\CMS\Extbase\SignalSlot\Exception\InvalidSlotReturnException
-     */
-    protected function emitAfterActivateEvent(?array $json)
-    {
-        self::$json = $this->getSignalSlotDispatcher()->dispatch(
-            __CLASS__,
-            'afterActivate',
-            ['json' => $json]
-        )['json'];
-    }
-
-    /**
-     * Emit the "beforeUpdate" event
-     *
-     * @param array $content
-     * @return mixed
-     * @throws \TYPO3\CMS\Extbase\SignalSlot\Exception\InvalidSlotException
-     * @throws \TYPO3\CMS\Extbase\SignalSlot\Exception\InvalidSlotReturnException
-     */
-    protected function emitBeforeUpdateEvent(array $content)
-    {
-        return $this->getSignalSlotDispatcher()->dispatch(
-            __CLASS__,
-            'beforeUpdate',
-            ['content' => $content]
-        )['content'];
-    }
-
-    /**
-     * Emit the "afterUpdate" event
-     *
-     * @param $content
-     * @throws \TYPO3\CMS\Extbase\SignalSlot\Exception\InvalidSlotException
-     * @throws \TYPO3\CMS\Extbase\SignalSlot\Exception\InvalidSlotReturnException
-     */
-    protected function emitAfterUpdateEvent($content)
-    {
-        $this->getSignalSlotDispatcher()->dispatch(
-            __CLASS__,
-            'afterUpdate',
-            ['content' => $content]
-        );
-    }
-
-    /**
-     * Emit the "beforeElementLoad" event
-     *
-     * @param string $type
-     * @param string $key
-     * @return array|mixed
-     * @throws \TYPO3\CMS\Extbase\SignalSlot\Exception\InvalidSlotException
-     * @throws \TYPO3\CMS\Extbase\SignalSlot\Exception\InvalidSlotReturnException
-     */
-    protected function emitBeforeLoadElementEvent(string $type, string $key)
-    {
-        return $this->getSignalSlotDispatcher()->dispatch(
-            __CLASS__,
-            'beforeLoadElement',
-            ['type' => $type, 'key' => $key]
-        );
-    }
-
-    /**
-     * Emit the "afterLoadElement" event
-     *
-     * @param array|null $json
-     * @return array|mixed
-     * @throws \TYPO3\CMS\Extbase\SignalSlot\Exception\InvalidSlotException
-     * @throws \TYPO3\CMS\Extbase\SignalSlot\Exception\InvalidSlotReturnException
-     */
-    protected function emitAfterLoadElementEvent(?array $json)
-    {
-        return $this->getSignalSlotDispatcher()->dispatch(
-            __CLASS__,
-            'afterLoadElement',
             ['json' => $json]
         )['json'];
     }
